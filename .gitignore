@@ -1,0 +1,18 @@
+# Quartus generated files
+**/db/
+**/incremental_db/
+**/output_files/
+**/simulation/
+*.qws
+
+# Simulation output
+*.vvp
+*.vcd
+*.fst
+
+# Editor and operating-system files
+.vs/
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
