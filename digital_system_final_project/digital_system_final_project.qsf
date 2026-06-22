@@ -47,6 +47,7 @@ set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
 set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
 set_global_assignment -name NOMINAL_CORE_SUPPLY_VOLTAGE 1.2V
+set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
 set_global_assignment -name EDA_SIMULATION_TOOL "ModelSim-Altera (Verilog)"
 set_global_assignment -name EDA_OUTPUT_DATA_FORMAT "VERILOG HDL" -section_id eda_simulation
 set_global_assignment -name VERILOG_FILE digital_system_final_project.v
@@ -55,6 +56,7 @@ set_global_assignment -name VERILOG_FILE button_conditioner.v
 set_global_assignment -name VERILOG_FILE traffic_controller.v
 set_global_assignment -name VERILOG_FILE countdown_display.v
 set_global_assignment -name VERILOG_FILE seven_seg_decoder.v
+set_global_assignment -name VERILOG_FILE lcd_controller.v
 set_global_assignment -name SDC_FILE digital_system_final_project.sdc
 
 # Board pin assignments are maintained in the project's Tcl file.

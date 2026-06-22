@@ -11,12 +11,14 @@ $sources = @(
     (Join-Path $projectRoot 'button_conditioner.v'),
     (Join-Path $projectRoot 'traffic_controller.v'),
     (Join-Path $projectRoot 'countdown_display.v'),
-    (Join-Path $projectRoot 'seven_seg_decoder.v')
+    (Join-Path $projectRoot 'seven_seg_decoder.v'),
+    (Join-Path $projectRoot 'lcd_controller.v')
 )
 
 $tests = @(
     @{ Top = 'traffic_controller_tb'; File = 'traffic_controller_tb.v' },
-    @{ Top = 'countdown_display_tb'; File = 'countdown_display_tb.v' }
+    @{ Top = 'countdown_display_tb'; File = 'countdown_display_tb.v' },
+    @{ Top = 'lcd_controller_tb'; File = 'lcd_controller_tb.v' }
 )
 
 foreach ($test in $tests) {

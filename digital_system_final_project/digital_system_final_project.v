@@ -22,7 +22,13 @@ module digital_system_final_project #(
     output wire [6:0]  HEX4,
     output wire [6:0]  HEX5,
     output wire [6:0]  HEX6,
-    output wire [6:0]  HEX7
+    output wire [6:0]  HEX7,
+    output wire        LCD_ON,
+    output wire        LCD_BLON,
+    output wire [7:0]  LCD_DATA,
+    output wire        LCD_RS,
+    output wire        LCD_RW,
+    output wire        LCD_EN
 );
 
     wire        tick_1s;
@@ -122,6 +128,22 @@ module digital_system_final_project #(
     seven_seg_decoder hex5_decoder (.value(ew_tens), .segments(HEX5));
     seven_seg_decoder hex6_decoder (.value(ns_ones), .segments(HEX6));
     seven_seg_decoder hex7_decoder (.value(ns_tens), .segments(HEX7));
+
+    lcd_controller #(
+        .CLOCK_HZ(CLOCK_HZ)
+    ) lcd_controller_inst (
+        .clk               (CLOCK_50),
+        .reset_n           (reset_n),
+        .traffic_state     (traffic_state),
+        .remaining_seconds (remaining_seconds),
+        .ped_pending       (ped_pending),
+        .LCD_ON            (LCD_ON),
+        .LCD_BLON          (LCD_BLON),
+        .LCD_DATA          (LCD_DATA),
+        .LCD_RS            (LCD_RS),
+        .LCD_RW            (LCD_RW),
+        .LCD_EN            (LCD_EN)
+    );
 
     // A yellow indication uses the red and green LEDs together.
     assign LEDR = {15'b0, ped_stop, ns_red, ew_red};

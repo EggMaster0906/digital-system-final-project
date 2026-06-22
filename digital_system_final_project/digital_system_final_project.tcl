@@ -107,3 +107,35 @@ set_location_assignment	PIN_F21	-to	LEDR[3]
 set_location_assignment	PIN_E19	-to	LEDR[2]
 set_location_assignment	PIN_F19	-to	LEDR[1]
 set_location_assignment	PIN_G19	-to	LEDR[0]
+set_location_assignment PIN_M5 -to LCD_DATA[7]
+set_location_assignment PIN_M3 -to LCD_DATA[6]
+set_location_assignment PIN_K2 -to LCD_DATA[5]
+set_location_assignment PIN_K1 -to LCD_DATA[4]
+set_location_assignment PIN_K7 -to LCD_DATA[3]
+set_location_assignment PIN_L2 -to LCD_DATA[2]
+set_location_assignment PIN_L1 -to LCD_DATA[1]
+set_location_assignment PIN_L3 -to LCD_DATA[0]
+set_location_assignment PIN_L4 -to LCD_EN
+set_location_assignment PIN_L5 -to LCD_ON
+set_location_assignment PIN_M2 -to LCD_RS
+set_location_assignment PIN_M1 -to LCD_RW
+set_location_assignment PIN_L6 -to LCD_BLON
+
+# DE2-115 onboard LEDs, seven-segment displays, and LCD use 3.3-V logic.
+# Explicit 8 mA drive assignments keep Quartus pin checks complete.
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {LEDR[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {LEDG[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {HEX0[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {HEX1[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {HEX2[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {HEX3[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {HEX4[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {HEX5[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {HEX6[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {HEX7[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to {LCD_DATA[*]}
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to LCD_EN
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to LCD_ON
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to LCD_BLON
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to LCD_RS
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to LCD_RW
