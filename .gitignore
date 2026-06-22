@@ -11,6 +11,7 @@
 *.fst
 
 # Editor and operating-system files
+AGENTS.md
 .vs/
 .vscode/
 .idea/
