@@ -5,6 +5,7 @@ module lcd_controller_tb;
     localparam [3:0] ST_EW_GREEN  = 4'd0;
     localparam [3:0] ST_NS_YELLOW = 4'd4;
     localparam [3:0] ST_NIGHT     = 4'd8;
+    localparam [3:0] ST_FAULT     = 4'd10;
 
     reg         clk;
     reg         reset_n;
@@ -18,8 +19,8 @@ module lcd_controller_tb;
     wire        LCD_RW;
     wire        LCD_EN;
 
-    reg  [7:0] captured_data [0:191];
-    reg        captured_rs   [0:191];
+    reg  [7:0] captured_data [0:255];
+    reg        captured_rs   [0:255];
     reg  [7:0] expected_line1[0:15];
     reg  [7:0] expected_line2[0:15];
     integer    write_count;
@@ -47,7 +48,7 @@ module lcd_controller_tb;
     always #5 clk = ~clk;
 
     always @(negedge LCD_EN) begin
-        if (reset_n && (write_count < 192)) begin
+        if (reset_n && (write_count < 256)) begin
             captured_data[write_count] = LCD_DATA;
             captured_rs[write_count]   = LCD_RS;
             write_count = write_count + 1;
@@ -150,6 +151,28 @@ module lcd_controller_tb;
         end
     endtask
 
+    task load_fault_lines;
+        begin
+            expected_line1[0]  = "S"; expected_line1[1]  = "Y";
+            expected_line1[2]  = "S"; expected_line1[3]  = "T";
+            expected_line1[4]  = "E"; expected_line1[5]  = "M";
+            expected_line1[6]  = " "; expected_line1[7]  = "F";
+            expected_line1[8]  = "A"; expected_line1[9]  = "U";
+            expected_line1[10] = "L"; expected_line1[11] = "T";
+            expected_line1[12] = " "; expected_line1[13] = " ";
+            expected_line1[14] = " "; expected_line1[15] = " ";
+
+            expected_line2[0]  = "F"; expected_line2[1]  = "L";
+            expected_line2[2]  = "A"; expected_line2[3]  = "S";
+            expected_line2[4]  = "H"; expected_line2[5]  = "I";
+            expected_line2[6]  = "N"; expected_line2[7]  = "G";
+            expected_line2[8]  = " "; expected_line2[9]  = "R";
+            expected_line2[10] = "E"; expected_line2[11] = "D";
+            expected_line2[12] = " "; expected_line2[13] = " ";
+            expected_line2[14] = " "; expected_line2[15] = " ";
+        end
+    endtask
+
     initial begin
         clk               = 1'b0;
         reset_n           = 1'b0;
@@ -216,8 +239,20 @@ module lcd_controller_tb;
             check_write(161 + index, 1'b1, expected_line2[index]);
         end
 
+        // Fault mode replaces every normal field with an unambiguous alarm.
+        traffic_state = ST_FAULT;
+        wait_for_writes(245);
+        check_write(211, 1'b0, 8'h80);
+        check_write(228, 1'b0, 8'hC0);
+
+        load_fault_lines;
+        for (index = 0; index < 16; index = index + 1) begin
+            check_write(212 + index, 1'b1, expected_line1[index]);
+            check_write(229 + index, 1'b1, expected_line2[index]);
+        end
+
         if (errors == 0)
-            $display("PASS: LCD initialization, normal refresh, and night-mode text passed");
+            $display("PASS: LCD initialization, normal refresh, night-mode text, and fault alarm passed");
         else
             $display("FAIL: %0d LCD controller checks failed", errors);
 

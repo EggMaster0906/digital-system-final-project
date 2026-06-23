@@ -16,7 +16,7 @@ $project_root/seven_seg_decoder.v
 $project_root/lcd_controller.v
 "
 
-for test_name in traffic_controller night_mode countdown_display lcd_controller; do
+for test_name in traffic_controller night_mode fault_mode countdown_display lcd_controller; do
     output="$output_dir/${test_name}_tb.vvp"
     trap 'rm -f "$output"' EXIT HUP INT TERM
     echo "=== Test ${test_name}_tb ==="

@@ -11,6 +11,8 @@ module countdown_display_tb;
     localparam [3:0] ST_PED_GO    = 4'd6;
     localparam [3:0] ST_PED_CLEAR = 4'd7;
     localparam [3:0] ST_NIGHT     = 4'd8;
+    localparam [3:0] ST_FAULT     = 4'd10;
+    localparam [3:0] ST_FAULT_CLEAR = 4'd11;
 
     reg  [3:0]  state;
     reg  [15:0] remaining_seconds;
@@ -136,8 +138,11 @@ module countdown_display_tb;
         // Values above the display range must saturate instead of wrapping.
         check_countdown(ST_EW_GREEN, 120, 1'b0, ST_NS_GREEN, 99, 99, 1'b0);
 
-        // Unsupported future modes use two minus signs for each direction.
+        // Special modes and their recovery interval cannot provide a normal
+        // traffic countdown, so both directions use two minus signs.
         check_countdown(ST_NIGHT, 0, 1'b0, ST_EW_GREEN, 0, 0, 1'b1);
+        check_countdown(ST_FAULT, 0, 1'b0, ST_EW_GREEN, 0, 0, 1'b1);
+        check_countdown(ST_FAULT_CLEAR, 1, 1'b0, ST_EW_GREEN, 0, 0, 1'b1);
 
         if (errors == 0)
             $display("PASS: dual countdown arithmetic, pedestrian phases, saturation and active-low segment encoding passed");

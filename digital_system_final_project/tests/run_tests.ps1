@@ -18,6 +18,7 @@ $sources = @(
 $tests = @(
     @{ Top = 'traffic_controller_tb'; File = 'traffic_controller_tb.v' },
     @{ Top = 'night_mode_tb'; File = 'night_mode_tb.v' },
+    @{ Top = 'fault_mode_tb'; File = 'fault_mode_tb.v' },
     @{ Top = 'countdown_display_tb'; File = 'countdown_display_tb.v' },
     @{ Top = 'lcd_controller_tb'; File = 'lcd_controller_tb.v' }
 )

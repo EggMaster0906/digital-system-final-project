@@ -28,6 +28,7 @@ module lcd_controller #(
     localparam [3:0] ST_ALL_RED_2 = 4'd5;
     localparam [3:0] ST_PED_GO    = 4'd6;
     localparam [3:0] ST_NIGHT     = 4'd8;
+    localparam [3:0] ST_FAULT     = 4'd10;
 
     localparam [3:0] OP_FUNCTION_1  = 4'd0;
     localparam [3:0] OP_FUNCTION_2  = 4'd1;
@@ -167,7 +168,41 @@ module lcd_controller #(
                 end
             endcase
 
-            if (current_state == ST_NIGHT) begin
+            if (current_state == ST_FAULT) begin
+                if (!line_number) begin
+                    case (character_column)
+                        5'd0:  screen_char = "S";
+                        5'd1:  screen_char = "Y";
+                        5'd2:  screen_char = "S";
+                        5'd3:  screen_char = "T";
+                        5'd4:  screen_char = "E";
+                        5'd5:  screen_char = "M";
+                        5'd6:  screen_char = " ";
+                        5'd7:  screen_char = "F";
+                        5'd8:  screen_char = "A";
+                        5'd9:  screen_char = "U";
+                        5'd10: screen_char = "L";
+                        5'd11: screen_char = "T";
+                        default: screen_char = " ";
+                    endcase
+                end else begin
+                    case (character_column)
+                        5'd0:  screen_char = "F";
+                        5'd1:  screen_char = "L";
+                        5'd2:  screen_char = "A";
+                        5'd3:  screen_char = "S";
+                        5'd4:  screen_char = "H";
+                        5'd5:  screen_char = "I";
+                        5'd6:  screen_char = "N";
+                        5'd7:  screen_char = "G";
+                        5'd8:  screen_char = " ";
+                        5'd9:  screen_char = "R";
+                        5'd10: screen_char = "E";
+                        5'd11: screen_char = "D";
+                        default: screen_char = " ";
+                    endcase
+                end
+            end else if (current_state == ST_NIGHT) begin
                 if (!line_number) begin
                     case (character_column)
                         5'd0: screen_char = "N";

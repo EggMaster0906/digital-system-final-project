@@ -56,17 +56,22 @@ module digital_system_final_project #(
     wire [6:0]  ns_tens_value;
     wire [6:0]  ns_ones_value;
     reg  [1:0]  night_mode_sync;
+    reg  [1:0]  fault_mode_sync;
     wire        night_mode = night_mode_sync[1];
+    wire        fault_mode = fault_mode_sync[1];
 
     // KEY[0] is active-low on the DE2-115 board.
     wire reset_n = KEY[0];
 
-    // Synchronize the asynchronous slide switch before it controls the FSM.
+    // Synchronize asynchronous mode switches before they control the FSM.
     always @(posedge CLOCK_50 or negedge reset_n) begin
-        if (!reset_n)
+        if (!reset_n) begin
             night_mode_sync <= 2'b00;
-        else
+            fault_mode_sync <= 2'b00;
+        end else begin
             night_mode_sync <= {night_mode_sync[0], SW[3]};
+            fault_mode_sync <= {fault_mode_sync[0], SW[4]};
+        end
     end
 
     clock_divider #(
@@ -101,6 +106,7 @@ module digital_system_final_project #(
         .tick_1s           (tick_1s),
         .ped_request       (ped_request),
         .night_mode        (night_mode),
+        .fault_mode        (fault_mode),
         .state             (traffic_state),
         .remaining_seconds (remaining_seconds),
         .ped_pending       (ped_pending),
@@ -168,7 +174,7 @@ module digital_system_final_project #(
     assign HEX2 = 7'b1111111;
     assign HEX3 = 7'b1111111;
 
-    // SW[3] selects night mode. Other switches remain available for later
-    // smart-traffic, fault, and configuration stages.
+    // SW[3] selects night mode and SW[4] simulates a system fault. Other
+    // switches remain available for later smart-traffic and configuration.
 
 endmodule

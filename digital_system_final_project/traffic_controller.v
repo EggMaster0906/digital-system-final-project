@@ -14,6 +14,7 @@ module traffic_controller #(
     input  wire        tick_1s,
     input  wire        ped_request,
     input  wire        night_mode,
+    input  wire        fault_mode,
     output reg  [3:0]  state,
     output reg  [15:0] remaining_seconds,
     output reg         ped_pending,
@@ -36,10 +37,12 @@ module traffic_controller #(
     localparam [3:0] ST_PED_CLEAR   = 4'd7;
     localparam [3:0] ST_NIGHT       = 4'd8;
     localparam [3:0] ST_NIGHT_CLEAR = 4'd9;
+    localparam [3:0] ST_FAULT       = 4'd10;
+    localparam [3:0] ST_FAULT_CLEAR = 4'd11;
 
     reg [15:0] elapsed_seconds;
     reg [15:0] flash_elapsed_seconds;
-    reg        night_flash_on;
+    reg        flash_on;
     reg [15:0] state_duration;
     reg [3:0]  next_state;
     reg        transition_due;
@@ -95,6 +98,17 @@ module traffic_controller #(
                 state_duration = ALL_RED_SECONDS;
                 next_state     = ST_EW_GREEN;
             end
+            ST_FAULT: begin
+                state_duration = FLASH_SECONDS;
+                next_state     = ST_FAULT;
+            end
+            ST_FAULT_CLEAR: begin
+                state_duration = ALL_RED_SECONDS;
+                if (night_mode)
+                    next_state = ST_NIGHT;
+                else
+                    next_state = ST_EW_GREEN;
+            end
             default: begin
                 state_duration = ALL_RED_SECONDS;
                 next_state     = ST_EW_GREEN;
@@ -117,20 +131,47 @@ module traffic_controller #(
             state           <= ST_EW_GREEN;
             elapsed_seconds <= 16'd0;
             flash_elapsed_seconds <= 16'd0;
-            night_flash_on  <= 1'b1;
+            flash_on        <= 1'b1;
             ped_pending     <= 1'b0;
             ped_return_state <= ST_NS_GREEN;
         end else begin
             if (ped_request && (state != ST_PED_GO))
                 ped_pending <= 1'b1;
 
+            // A synchronized fault has priority over every operating mode and
+            // may immediately replace the current indication with flashing
+            // red. Its timer is independent of the paused normal sequence.
+            if (fault_mode && (state != ST_FAULT)) begin
+                state                 <= ST_FAULT;
+                elapsed_seconds       <= 16'd0;
+                flash_elapsed_seconds <= 16'd0;
+                flash_on              <= 1'b1;
+            end else if (state == ST_FAULT) begin
+                elapsed_seconds <= 16'd0;
+
+                if (!fault_mode) begin
+                    // Always insert a complete all-red interval after a fault.
+                    // A still-active night request is considered only after
+                    // this clearance has completed.
+                    state                 <= ST_FAULT_CLEAR;
+                    flash_elapsed_seconds <= 16'd0;
+                    flash_on              <= 1'b0;
+                end else if (tick_1s) begin
+                    if (flash_elapsed_seconds + 1'b1 >= FLASH_SECONDS) begin
+                        flash_elapsed_seconds <= 16'd0;
+                        flash_on              <= ~flash_on;
+                    end else begin
+                        flash_elapsed_seconds <= flash_elapsed_seconds + 1'b1;
+                    end
+                end
             // Night mode has priority over the normal traffic and pedestrian
-            // sequence.  Its flash timer is independent of the paused FSM.
-            if (night_mode && (state != ST_NIGHT)) begin
+            // sequence, but it cannot bypass fault-clearance all-red timing.
+            end else if (night_mode && (state != ST_NIGHT) &&
+                         (state != ST_FAULT_CLEAR)) begin
                 state                 <= ST_NIGHT;
                 elapsed_seconds       <= 16'd0;
                 flash_elapsed_seconds <= 16'd0;
-                night_flash_on        <= 1'b1;
+                flash_on              <= 1'b1;
             end else if (state == ST_NIGHT) begin
                 elapsed_seconds <= 16'd0;
 
@@ -139,18 +180,18 @@ module traffic_controller #(
                     // interval before restarting from EW green.
                     state                 <= ST_NIGHT_CLEAR;
                     flash_elapsed_seconds <= 16'd0;
-                    night_flash_on        <= 1'b0;
+                    flash_on              <= 1'b0;
                 end else if (tick_1s) begin
                     if (flash_elapsed_seconds + 1'b1 >= FLASH_SECONDS) begin
                         flash_elapsed_seconds <= 16'd0;
-                        night_flash_on        <= ~night_flash_on;
+                        flash_on              <= ~flash_on;
                     end else begin
                         flash_elapsed_seconds <= flash_elapsed_seconds + 1'b1;
                     end
                 end
             end else begin
                 flash_elapsed_seconds <= 16'd0;
-                night_flash_on        <= 1'b1;
+                flash_on              <= 1'b1;
 
                 if (tick_1s && transition_due) begin
                     if ((state == ST_ALL_RED_1) && (next_state == ST_PED_GO))
@@ -171,7 +212,7 @@ module traffic_controller #(
     end
 
     always @(*) begin
-        if (state == ST_NIGHT)
+        if ((state == ST_NIGHT) || (state == ST_FAULT))
             remaining_seconds = 16'd0;
         else if (((state == ST_EW_GREEN) || (state == ST_NS_GREEN)) &&
             ped_request_active && (elapsed_seconds < MIN_GREEN_SECONDS))
@@ -216,9 +257,15 @@ module traffic_controller #(
                 ped_go   = 1'b1;
             end
             ST_NIGHT: begin
-                ew_red   = night_flash_on;
-                ew_green = night_flash_on;
-                ns_red   = night_flash_on;
+                ew_red   = flash_on;
+                ew_green = flash_on;
+                ns_red   = flash_on;
+                ns_green = 1'b0;
+            end
+            ST_FAULT: begin
+                ew_red   = flash_on;
+                ew_green = 1'b0;
+                ns_red   = flash_on;
                 ns_green = 1'b0;
             end
             default: begin
