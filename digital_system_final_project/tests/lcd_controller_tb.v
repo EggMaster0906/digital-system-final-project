@@ -10,6 +10,8 @@ module lcd_controller_tb;
     reg  [2:0]  traffic_state;
     reg  [15:0] remaining_seconds;
     reg         ped_pending;
+    reg         traffic_extended;
+    reg         blink_visible;
     wire        LCD_ON;
     wire        LCD_BLON;
     wire [7:0]  LCD_DATA;
@@ -17,8 +19,8 @@ module lcd_controller_tb;
     wire        LCD_RW;
     wire        LCD_EN;
 
-    reg  [7:0] captured_data [0:127];
-    reg        captured_rs   [0:127];
+    reg  [7:0] captured_data [0:255];
+    reg        captured_rs   [0:255];
     reg  [7:0] expected_line1[0:15];
     reg  [7:0] expected_line2[0:15];
     integer    write_count;
@@ -35,6 +37,8 @@ module lcd_controller_tb;
         .traffic_state     (traffic_state),
         .remaining_seconds (remaining_seconds),
         .ped_pending       (ped_pending),
+        .traffic_extended  (traffic_extended),
+        .blink_visible     (blink_visible),
         .LCD_ON            (LCD_ON),
         .LCD_BLON          (LCD_BLON),
         .LCD_DATA          (LCD_DATA),
@@ -46,7 +50,7 @@ module lcd_controller_tb;
     always #5 clk = ~clk;
 
     always @(negedge LCD_EN) begin
-        if (reset_n && (write_count < 128)) begin
+        if (reset_n && (write_count < 256)) begin
             captured_data[write_count] = LCD_DATA;
             captured_rs[write_count]   = LCD_RS;
             write_count = write_count + 1;
@@ -133,6 +137,8 @@ module lcd_controller_tb;
         traffic_state     = ST_EW_GREEN;
         remaining_seconds = 16'd8;
         ped_pending       = 1'b0;
+        traffic_extended  = 1'b0;
+        blink_visible     = 1'b1;
         write_count       = 0;
         errors            = 0;
 
@@ -180,8 +186,21 @@ module lcd_controller_tb;
             check_write(93 + index, 1'b1, expected_line2[index]);
         end
 
+        // During a smart-traffic extension, the countdown position flashes
+        // two dashes without changing either traffic-signal label.
+        traffic_extended = 1'b1;
+        blink_visible    = 1'b1;
+        wait_for_writes(143);
+        check_write(122, 1'b1, "-");
+        check_write(123, 1'b1, "-");
+
+        blink_visible = 1'b0;
+        wait_for_writes(177);
+        check_write(156, 1'b1, " ");
+        check_write(157, 1'b1, " ");
+
         if (errors == 0)
-            $display("PASS: LCD initialization, command timing sequence, two-line text, and live refresh passed");
+            $display("PASS: LCD initialization, live refresh, and flashing extended countdown passed");
         else
             $display("FAIL: %0d LCD controller checks failed", errors);
 

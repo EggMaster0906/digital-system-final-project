@@ -12,6 +12,8 @@ module lcd_controller #(
     input  wire [2:0]  traffic_state,
     input  wire [15:0] remaining_seconds,
     input  wire        ped_pending,
+    input  wire        traffic_extended,
+    input  wire        blink_visible,
     output wire        LCD_ON,
     output wire        LCD_BLON,
     output reg  [7:0]  LCD_DATA,
@@ -58,6 +60,8 @@ module lcd_controller #(
     reg [3:0]  frame_tens;
     reg [3:0]  frame_ones;
     reg        frame_ped_pending;
+    reg        frame_traffic_extended;
+    reg        frame_blink_visible;
 
     wire [6:0] shown_seconds =
         (remaining_seconds > 16'd99) ? 7'd99 : remaining_seconds[6:0];
@@ -146,6 +150,8 @@ module lcd_controller #(
         input [3:0] time_tens;
         input [3:0] time_ones;
         input       request_pending;
+        input       extended_countdown;
+        input       dashes_visible;
         reg   [1:0] ew_signal;
         reg   [1:0] ns_signal;
         reg   [1:0] ped_status;
@@ -177,8 +183,18 @@ module lcd_controller #(
                     5'd9:  screen_char = " ";
                     5'd10: screen_char = "T";
                     5'd11: screen_char = ":";
-                    5'd12: screen_char = "0" + time_tens;
-                    5'd13: screen_char = "0" + time_ones;
+                    5'd12: begin
+                        if (extended_countdown)
+                            screen_char = dashes_visible ? "-" : " ";
+                        else
+                            screen_char = "0" + time_tens;
+                    end
+                    5'd13: begin
+                        if (extended_countdown)
+                            screen_char = dashes_visible ? "-" : " ";
+                        else
+                            screen_char = "0" + time_ones;
+                    end
                     default: screen_char = " ";
                 endcase
             end else begin
@@ -215,6 +231,8 @@ module lcd_controller #(
             frame_tens  <= 4'd0;
             frame_ones  <= 4'd0;
             frame_ped_pending <= 1'b0;
+            frame_traffic_extended <= 1'b0;
+            frame_blink_visible <= 1'b1;
         end else if (step_count >= SAFE_STEP_CYCLES - 1) begin
             step_count <= 32'd0;
 
@@ -230,6 +248,8 @@ module lcd_controller #(
                             frame_tens        <= shown_tens;
                             frame_ones        <= shown_ones;
                             frame_ped_pending <= ped_pending;
+                            frame_traffic_extended <= traffic_extended;
+                            frame_blink_visible <= blink_visible;
                         end
                         if ((operation == OP_LINE1_DATA) ||
                             (operation == OP_LINE2_DATA)) begin
@@ -240,7 +260,9 @@ module lcd_controller #(
                                 frame_state,
                                 frame_tens,
                                 frame_ones,
-                                frame_ped_pending);
+                                frame_ped_pending,
+                                frame_traffic_extended,
+                                frame_blink_visible);
                         end else begin
                             LCD_RS <= 1'b0;
                             case (operation)

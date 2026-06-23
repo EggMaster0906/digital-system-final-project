@@ -6,6 +6,7 @@ module traffic_controller_tb;
     localparam integer TEST_DEBOUNCE_CYCLES = 1;
     localparam integer TEST_GREEN_SECONDS   = 4;
     localparam integer TEST_MIN_GREEN       = 2;
+    localparam integer TEST_MAX_GREEN       = 7;
     localparam integer TEST_YELLOW_SECONDS  = 2;
     localparam integer TEST_ALL_RED_SECONDS = 1;
     localparam integer TEST_PED_SECONDS     = 3;
@@ -39,6 +40,7 @@ module traffic_controller_tb;
         .BUTTON_DEBOUNCE_CYCLES(TEST_DEBOUNCE_CYCLES),
         .GREEN_SECONDS         (TEST_GREEN_SECONDS),
         .MIN_GREEN_SECONDS     (TEST_MIN_GREEN),
+        .MAX_GREEN_SECONDS     (TEST_MAX_GREEN),
         .YELLOW_SECONDS        (TEST_YELLOW_SECONDS),
         .ALL_RED_SECONDS       (TEST_ALL_RED_SECONDS),
         .PED_SECONDS           (TEST_PED_SECONDS)
@@ -235,8 +237,122 @@ module traffic_controller_tb;
         #1;
         check_state(ST_EW_GREEN, TEST_GREEN_SECONDS, 1'b0);
 
+        // Smart mode must finish the ordinary four-second countdown without
+        // jumping to the maximum value, then flash "--" during extension.
+        KEY[1] = 1'b1;
+        SW     = 18'd0;
+        SW[2:0] = 3'b101;
+        repeat (2) @(posedge clk);
+        KEY[0] = 1'b1;
+        repeat (3) @(posedge clk);
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 3, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 2, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 1, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 0, 1'b0);
+        if (!dut.traffic_extended ||
+            ({HEX5, HEX4, HEX7, HEX6} !== {4{7'b0111111}})) begin
+            $display("FAIL: smart extension did not begin with visible dashes");
+            errors = errors + 1;
+        end
+
+        repeat (10) @(posedge clk);
+        #1;
+        if ({HEX5, HEX4, HEX7, HEX6} !== {4{7'b1111111}}) begin
+            $display("FAIL: extended countdown did not blank after half a second");
+            errors = errors + 1;
+        end
+
+        repeat (10) @(posedge clk);
+        #1;
+        check_state(ST_EW_GREEN, 0, 1'b0);
+        if ({HEX5, HEX4, HEX7, HEX6} !== {4{7'b0111111}}) begin
+            $display("FAIL: extended countdown did not return after one second");
+            errors = errors + 1;
+        end
+
+        // Releasing the active-direction sensor ends the unknown display and
+        // starts a stable three-second green countdown before yellow.
+        SW[0] = 1'b0;
+        repeat (3) @(posedge clk);
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 3, 1'b0);
+        if (dut.traffic_extended) begin
+            $display("FAIL: dashes continued after active vehicle demand ended");
+            errors = errors + 1;
+        end
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 2, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 1, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_YELLOW, TEST_YELLOW_SECONDS, 1'b0);
+
+        // If demand remains asserted, the unknown extension ends at the
+        // configured maximum and enters the same three-second release phase.
+        KEY[0] = 1'b0;
+        SW[2:0] = 3'b101;
+        repeat (2) @(posedge clk);
+        KEY[0] = 1'b1;
+        repeat (3) @(posedge clk);
+        wait_controller_tick;
+        wait_controller_tick;
+        wait_controller_tick;
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 0, 1'b0);
+        wait_controller_tick;
+        wait_controller_tick;
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 3, 1'b0);
+        if (dut.traffic_extended) begin
+            $display("FAIL: extension exceeded the configured maximum");
+            errors = errors + 1;
+        end
+
+        // Reproduce the board-level bug: keep EW sensing asserted throughout
+        // its extension and verify the following NS green is not shortened.
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 2, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 1, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_YELLOW, TEST_YELLOW_SECONDS, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_YELLOW, TEST_YELLOW_SECONDS - 1, 1'b0);
+        wait_controller_tick;
+        check_state(ST_ALL_RED_1, TEST_ALL_RED_SECONDS, 1'b0);
+        wait_controller_tick;
+        check_state(ST_NS_GREEN, TEST_GREEN_SECONDS, 1'b0);
+        wait_controller_tick;
+        check_state(ST_NS_GREEN, TEST_GREEN_SECONDS - 1, 1'b0);
+        wait_controller_tick;
+        check_state(ST_NS_GREEN, TEST_GREEN_SECONDS - 2, 1'b0);
+        wait_controller_tick;
+        check_state(ST_NS_GREEN, TEST_GREEN_SECONDS - 3, 1'b0);
+        wait_controller_tick;
+        check_state(ST_NS_YELLOW, TEST_YELLOW_SECONDS, 1'b0);
+
+        // Opposing-only demand must not shorten the active green. Vehicle
+        // sensing is extension-only; this direction still gets four seconds.
+        KEY[0] = 1'b0;
+        SW[2:0] = 3'b110;
+        repeat (2) @(posedge clk);
+        KEY[0] = 1'b1;
+        repeat (3) @(posedge clk);
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 3, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 2, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_GREEN, 1, 1'b0);
+        wait_controller_tick;
+        check_state(ST_EW_YELLOW, TEST_YELLOW_SECONDS, 1'b0);
+
         if (errors == 0)
-            $display("PASS: pedestrian request, minimum green, crossing clearance, return path and long-hold checks passed");
+            $display("PASS: extension-only smart mode, release phase, limits, flashing, and pedestrian handling passed");
         else
             $display("FAIL: %0d pedestrian traffic-light checks failed", errors);
 

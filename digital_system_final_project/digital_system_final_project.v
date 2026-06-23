@@ -6,6 +6,8 @@ module digital_system_final_project #(
     parameter integer BUTTON_DEBOUNCE_CYCLES = 1_000_000,
     parameter [15:0]  GREEN_SECONDS    = 16'd10,
     parameter [15:0]  MIN_GREEN_SECONDS = 16'd5,
+    parameter [15:0]  MAX_GREEN_SECONDS = 16'd15,
+    parameter [15:0]  EXTENSION_RELEASE_SECONDS = 16'd3,
     parameter [15:0]  YELLOW_SECONDS   = 16'd3,
     parameter [15:0]  ALL_RED_SECONDS  = 16'd1,
     parameter [15:0]  PED_SECONDS      = 16'd5
@@ -46,6 +48,11 @@ module digital_system_final_project #(
     wire [6:0]  ew_countdown;
     wire [6:0]  ns_countdown;
     wire        countdown_dashes;
+    wire        traffic_extended;
+    reg         blink_visible;
+    reg  [31:0] blink_count;
+    reg  [2:0]  sensor_meta;
+    reg  [2:0]  sensor_sync;
     wire [3:0]  ew_tens;
     wire [3:0]  ew_ones;
     wire [3:0]  ns_tens;
@@ -57,6 +64,37 @@ module digital_system_final_project #(
 
     // KEY[0] is active-low on the DE2-115 board.
     wire reset_n = KEY[0];
+    localparam integer BLINK_HALF_CYCLES =
+        (CLOCK_HZ < 2) ? 1 : ((CLOCK_HZ + 1) / 2);
+
+    // SW[0]=EW vehicle, SW[1]=NS vehicle, SW[2]=smart traffic mode.
+    // Synchronize the board switches before they enter the state machine.
+    always @(posedge CLOCK_50 or negedge reset_n) begin
+        if (!reset_n) begin
+            sensor_meta <= 3'b000;
+            sensor_sync <= 3'b000;
+        end else begin
+            sensor_meta <= SW[2:0];
+            sensor_sync <= sensor_meta;
+        end
+    end
+
+    // A full blink cycle is one second: 0.5 s visible and 0.5 s blank. Start
+    // each extension with the dashes visible for deterministic feedback.
+    always @(posedge CLOCK_50 or negedge reset_n) begin
+        if (!reset_n) begin
+            blink_count   <= 32'd0;
+            blink_visible <= 1'b1;
+        end else if (!traffic_extended) begin
+            blink_count   <= 32'd0;
+            blink_visible <= 1'b1;
+        end else if (blink_count >= BLINK_HALF_CYCLES - 1) begin
+            blink_count   <= 32'd0;
+            blink_visible <= ~blink_visible;
+        end else begin
+            blink_count <= blink_count + 1'b1;
+        end
+    end
 
     clock_divider #(
         .CLOCK_HZ(CLOCK_HZ)
@@ -80,6 +118,8 @@ module digital_system_final_project #(
     traffic_controller #(
         .GREEN_SECONDS   (GREEN_SECONDS),
         .MIN_GREEN_SECONDS(MIN_GREEN_SECONDS),
+        .MAX_GREEN_SECONDS(MAX_GREEN_SECONDS),
+        .EXTENSION_RELEASE_SECONDS(EXTENSION_RELEASE_SECONDS),
         .YELLOW_SECONDS  (YELLOW_SECONDS),
         .ALL_RED_SECONDS (ALL_RED_SECONDS),
         .PED_SECONDS     (PED_SECONDS)
@@ -88,6 +128,9 @@ module digital_system_final_project #(
         .reset_n           (reset_n),
         .tick_1s           (tick_1s),
         .ped_request       (ped_request),
+        .smart_mode        (sensor_sync[2]),
+        .ew_vehicle        (sensor_sync[0]),
+        .ns_vehicle        (sensor_sync[1]),
         .state             (traffic_state),
         .remaining_seconds (remaining_seconds),
         .ped_pending       (ped_pending),
@@ -97,7 +140,8 @@ module digital_system_final_project #(
         .ns_red            (ns_red),
         .ns_green          (ns_green),
         .ped_stop          (ped_stop),
-        .ped_go            (ped_go)
+        .ped_go            (ped_go),
+        .traffic_extended  (traffic_extended)
     );
 
     countdown_display #(
@@ -119,10 +163,18 @@ module digital_system_final_project #(
     assign ew_ones_value = ew_countdown % 7'd10;
     assign ns_tens_value = ns_countdown / 7'd10;
     assign ns_ones_value = ns_countdown % 7'd10;
-    assign ew_tens = countdown_dashes ? 4'd10 : ew_tens_value[3:0];
-    assign ew_ones = countdown_dashes ? 4'd10 : ew_ones_value[3:0];
-    assign ns_tens = countdown_dashes ? 4'd10 : ns_tens_value[3:0];
-    assign ns_ones = countdown_dashes ? 4'd10 : ns_ones_value[3:0];
+    assign ew_tens = countdown_dashes ? 4'd10 :
+                     traffic_extended ? (blink_visible ? 4'd10 : 4'd15) :
+                     ew_tens_value[3:0];
+    assign ew_ones = countdown_dashes ? 4'd10 :
+                     traffic_extended ? (blink_visible ? 4'd10 : 4'd15) :
+                     ew_ones_value[3:0];
+    assign ns_tens = countdown_dashes ? 4'd10 :
+                     traffic_extended ? (blink_visible ? 4'd10 : 4'd15) :
+                     ns_tens_value[3:0];
+    assign ns_ones = countdown_dashes ? 4'd10 :
+                     traffic_extended ? (blink_visible ? 4'd10 : 4'd15) :
+                     ns_ones_value[3:0];
 
     seven_seg_decoder hex4_decoder (.value(ew_ones), .segments(HEX4));
     seven_seg_decoder hex5_decoder (.value(ew_tens), .segments(HEX5));
@@ -137,6 +189,8 @@ module digital_system_final_project #(
         .traffic_state     (traffic_state),
         .remaining_seconds (remaining_seconds),
         .ped_pending       (ped_pending),
+        .traffic_extended  (traffic_extended),
+        .blink_visible     (blink_visible),
         .LCD_ON            (LCD_ON),
         .LCD_BLON          (LCD_BLON),
         .LCD_DATA          (LCD_DATA),
@@ -154,7 +208,5 @@ module digital_system_final_project #(
     assign HEX1 = 7'b1111111;
     assign HEX2 = 7'b1111111;
     assign HEX3 = 7'b1111111;
-
-    // SW is reserved for later smart-traffic and mode-selection stages.
 
 endmodule
