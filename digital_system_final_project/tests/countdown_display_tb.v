@@ -2,16 +2,17 @@
 
 module countdown_display_tb;
 
-    localparam [2:0] ST_EW_GREEN  = 3'd0;
-    localparam [2:0] ST_EW_YELLOW = 3'd1;
-    localparam [2:0] ST_ALL_RED_1 = 3'd2;
-    localparam [2:0] ST_NS_GREEN  = 3'd3;
-    localparam [2:0] ST_NS_YELLOW = 3'd4;
-    localparam [2:0] ST_ALL_RED_2 = 3'd5;
-    localparam [2:0] ST_PED_GO    = 3'd6;
-    localparam [2:0] ST_PED_CLEAR = 3'd7;
+    localparam [3:0] ST_EW_GREEN  = 4'd0;
+    localparam [3:0] ST_EW_YELLOW = 4'd1;
+    localparam [3:0] ST_ALL_RED_1 = 4'd2;
+    localparam [3:0] ST_NS_GREEN  = 4'd3;
+    localparam [3:0] ST_NS_YELLOW = 4'd4;
+    localparam [3:0] ST_ALL_RED_2 = 4'd5;
+    localparam [3:0] ST_PED_GO    = 4'd6;
+    localparam [3:0] ST_PED_CLEAR = 4'd7;
+    localparam [3:0] ST_NIGHT     = 4'd8;
 
-    reg  [2:0]  state;
+    reg  [3:0]  state;
     reg  [15:0] remaining_seconds;
     reg         ped_pending;
     reg  [2:0]  ped_return_state;
@@ -68,7 +69,7 @@ module countdown_display_tb;
     endfunction
 
     task check_countdown;
-        input [2:0]  test_state;
+        input [3:0]  test_state;
         input [15:0] test_remaining;
         input        test_pending;
         input [2:0]  test_return_state;
@@ -136,7 +137,7 @@ module countdown_display_tb;
         check_countdown(ST_EW_GREEN, 120, 1'b0, ST_NS_GREEN, 99, 99, 1'b0);
 
         // Unsupported future modes use two minus signs for each direction.
-        check_countdown(3'bxxx, 0, 1'b0, ST_EW_GREEN, 0, 0, 1'b1);
+        check_countdown(ST_NIGHT, 0, 1'b0, ST_EW_GREEN, 0, 0, 1'b1);
 
         if (errors == 0)
             $display("PASS: dual countdown arithmetic, pedestrian phases, saturation and active-low segment encoding passed");

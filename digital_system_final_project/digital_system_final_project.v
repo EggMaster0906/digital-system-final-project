@@ -8,7 +8,8 @@ module digital_system_final_project #(
     parameter [15:0]  MIN_GREEN_SECONDS = 16'd5,
     parameter [15:0]  YELLOW_SECONDS   = 16'd3,
     parameter [15:0]  ALL_RED_SECONDS  = 16'd1,
-    parameter [15:0]  PED_SECONDS      = 16'd5
+    parameter [15:0]  PED_SECONDS      = 16'd5,
+    parameter [15:0]  FLASH_SECONDS    = 16'd1
 )(
     input  wire        CLOCK_50,
     input  wire [3:0]  KEY,
@@ -32,7 +33,7 @@ module digital_system_final_project #(
 );
 
     wire        tick_1s;
-    wire [2:0]  traffic_state;
+    wire [3:0]  traffic_state;
     wire [15:0] remaining_seconds;
     wire        ew_red;
     wire        ew_green;
@@ -54,9 +55,19 @@ module digital_system_final_project #(
     wire [6:0]  ew_ones_value;
     wire [6:0]  ns_tens_value;
     wire [6:0]  ns_ones_value;
+    reg  [1:0]  night_mode_sync;
+    wire        night_mode = night_mode_sync[1];
 
     // KEY[0] is active-low on the DE2-115 board.
     wire reset_n = KEY[0];
+
+    // Synchronize the asynchronous slide switch before it controls the FSM.
+    always @(posedge CLOCK_50 or negedge reset_n) begin
+        if (!reset_n)
+            night_mode_sync <= 2'b00;
+        else
+            night_mode_sync <= {night_mode_sync[0], SW[3]};
+    end
 
     clock_divider #(
         .CLOCK_HZ(CLOCK_HZ)
@@ -82,12 +93,14 @@ module digital_system_final_project #(
         .MIN_GREEN_SECONDS(MIN_GREEN_SECONDS),
         .YELLOW_SECONDS  (YELLOW_SECONDS),
         .ALL_RED_SECONDS (ALL_RED_SECONDS),
-        .PED_SECONDS     (PED_SECONDS)
+        .PED_SECONDS     (PED_SECONDS),
+        .FLASH_SECONDS   (FLASH_SECONDS)
     ) traffic_controller_inst (
         .clk               (CLOCK_50),
         .reset_n           (reset_n),
         .tick_1s           (tick_1s),
         .ped_request       (ped_request),
+        .night_mode        (night_mode),
         .state             (traffic_state),
         .remaining_seconds (remaining_seconds),
         .ped_pending       (ped_pending),
@@ -155,6 +168,7 @@ module digital_system_final_project #(
     assign HEX2 = 7'b1111111;
     assign HEX3 = 7'b1111111;
 
-    // SW is reserved for later smart-traffic and mode-selection stages.
+    // SW[3] selects night mode. Other switches remain available for later
+    // smart-traffic, fault, and configuration stages.
 
 endmodule

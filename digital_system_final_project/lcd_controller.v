@@ -9,7 +9,7 @@ module lcd_controller #(
 )(
     input  wire        clk,
     input  wire        reset_n,
-    input  wire [2:0]  traffic_state,
+    input  wire [3:0]  traffic_state,
     input  wire [15:0] remaining_seconds,
     input  wire        ped_pending,
     output wire        LCD_ON,
@@ -20,13 +20,14 @@ module lcd_controller #(
     output reg         LCD_EN
 );
 
-    localparam [2:0] ST_EW_GREEN  = 3'd0;
-    localparam [2:0] ST_EW_YELLOW = 3'd1;
-    localparam [2:0] ST_ALL_RED_1 = 3'd2;
-    localparam [2:0] ST_NS_GREEN  = 3'd3;
-    localparam [2:0] ST_NS_YELLOW = 3'd4;
-    localparam [2:0] ST_ALL_RED_2 = 3'd5;
-    localparam [2:0] ST_PED_GO    = 3'd6;
+    localparam [3:0] ST_EW_GREEN  = 4'd0;
+    localparam [3:0] ST_EW_YELLOW = 4'd1;
+    localparam [3:0] ST_ALL_RED_1 = 4'd2;
+    localparam [3:0] ST_NS_GREEN  = 4'd3;
+    localparam [3:0] ST_NS_YELLOW = 4'd4;
+    localparam [3:0] ST_ALL_RED_2 = 4'd5;
+    localparam [3:0] ST_PED_GO    = 4'd6;
+    localparam [3:0] ST_NIGHT     = 4'd8;
 
     localparam [3:0] OP_FUNCTION_1  = 4'd0;
     localparam [3:0] OP_FUNCTION_2  = 4'd1;
@@ -54,7 +55,7 @@ module lcd_controller #(
     reg [3:0]  operation;
     reg [1:0]  write_phase;
     reg [4:0]  column;
-    reg [2:0]  frame_state;
+    reg [3:0]  frame_state;
     reg [3:0]  frame_tens;
     reg [3:0]  frame_ones;
     reg        frame_ped_pending;
@@ -142,7 +143,7 @@ module lcd_controller #(
     function [7:0] screen_char;
         input       line_number;
         input [4:0] character_column;
-        input [2:0] current_state;
+        input [3:0] current_state;
         input [3:0] time_tens;
         input [3:0] time_ones;
         input       request_pending;
@@ -150,8 +151,8 @@ module lcd_controller #(
         reg   [1:0] ns_signal;
         reg   [1:0] ped_status;
         begin
-            ew_signal = 2'd0;
-            ns_signal = 2'd0;
+            ew_signal  = 2'd0;
+            ns_signal  = 2'd0;
             ped_status = request_pending ? 2'd1 : 2'd0;
 
             case (current_state)
@@ -166,7 +167,42 @@ module lcd_controller #(
                 end
             endcase
 
-            if (!line_number) begin
+            if (current_state == ST_NIGHT) begin
+                if (!line_number) begin
+                    case (character_column)
+                        5'd0: screen_char = "N";
+                        5'd1: screen_char = "I";
+                        5'd2: screen_char = "G";
+                        5'd3: screen_char = "H";
+                        5'd4: screen_char = "T";
+                        5'd5: screen_char = " ";
+                        5'd6: screen_char = "M";
+                        5'd7: screen_char = "O";
+                        5'd8: screen_char = "D";
+                        5'd9: screen_char = "E";
+                        default: screen_char = " ";
+                    endcase
+                end else begin
+                    case (character_column)
+                        5'd0:  screen_char = "E";
+                        5'd1:  screen_char = "W";
+                        5'd2:  screen_char = ":";
+                        5'd3:  screen_char = "Y";
+                        5'd4:  screen_char = "E";
+                        5'd5:  screen_char = "L";
+                        5'd6:  screen_char = "L";
+                        5'd7:  screen_char = "O";
+                        5'd8:  screen_char = "W";
+                        5'd9:  screen_char = " ";
+                        5'd10: screen_char = "N";
+                        5'd11: screen_char = "S";
+                        5'd12: screen_char = ":";
+                        5'd13: screen_char = "R";
+                        5'd14: screen_char = "E";
+                        default: screen_char = "D";
+                    endcase
+                end
+            end else if (!line_number) begin
                 case (character_column)
                     5'd0:  screen_char = "E";
                     5'd1:  screen_char = "W";

@@ -2,12 +2,13 @@
 
 module lcd_controller_tb;
 
-    localparam [2:0] ST_EW_GREEN  = 3'd0;
-    localparam [2:0] ST_NS_YELLOW = 3'd4;
+    localparam [3:0] ST_EW_GREEN  = 4'd0;
+    localparam [3:0] ST_NS_YELLOW = 4'd4;
+    localparam [3:0] ST_NIGHT     = 4'd8;
 
     reg         clk;
     reg         reset_n;
-    reg  [2:0]  traffic_state;
+    reg  [3:0]  traffic_state;
     reg  [15:0] remaining_seconds;
     reg         ped_pending;
     wire        LCD_ON;
@@ -17,8 +18,8 @@ module lcd_controller_tb;
     wire        LCD_RW;
     wire        LCD_EN;
 
-    reg  [7:0] captured_data [0:127];
-    reg        captured_rs   [0:127];
+    reg  [7:0] captured_data [0:191];
+    reg        captured_rs   [0:191];
     reg  [7:0] expected_line1[0:15];
     reg  [7:0] expected_line2[0:15];
     integer    write_count;
@@ -46,7 +47,7 @@ module lcd_controller_tb;
     always #5 clk = ~clk;
 
     always @(negedge LCD_EN) begin
-        if (reset_n && (write_count < 128)) begin
+        if (reset_n && (write_count < 192)) begin
             captured_data[write_count] = LCD_DATA;
             captured_rs[write_count]   = LCD_RS;
             write_count = write_count + 1;
@@ -127,6 +128,28 @@ module lcd_controller_tb;
         end
     endtask
 
+    task load_night_lines;
+        begin
+            expected_line1[0]  = "N"; expected_line1[1]  = "I";
+            expected_line1[2]  = "G"; expected_line1[3]  = "H";
+            expected_line1[4]  = "T"; expected_line1[5]  = " ";
+            expected_line1[6]  = "M"; expected_line1[7]  = "O";
+            expected_line1[8]  = "D"; expected_line1[9]  = "E";
+            expected_line1[10] = " "; expected_line1[11] = " ";
+            expected_line1[12] = " "; expected_line1[13] = " ";
+            expected_line1[14] = " "; expected_line1[15] = " ";
+
+            expected_line2[0]  = "E"; expected_line2[1]  = "W";
+            expected_line2[2]  = ":"; expected_line2[3]  = "Y";
+            expected_line2[4]  = "E"; expected_line2[5]  = "L";
+            expected_line2[6]  = "L"; expected_line2[7]  = "O";
+            expected_line2[8]  = "W"; expected_line2[9]  = " ";
+            expected_line2[10] = "N"; expected_line2[11] = "S";
+            expected_line2[12] = ":"; expected_line2[13] = "R";
+            expected_line2[14] = "E"; expected_line2[15] = "D";
+        end
+    endtask
+
     initial begin
         clk               = 1'b0;
         reset_n           = 1'b0;
@@ -180,8 +203,21 @@ module lcd_controller_tb;
             check_write(93 + index, 1'b1, expected_line2[index]);
         end
 
+        // Night mode replaces the normal countdown frame with an explicit
+        // mode label and the two flashing signal meanings.
+        traffic_state = ST_NIGHT;
+        wait_for_writes(177);
+        check_write(143, 1'b0, 8'h80);
+        check_write(160, 1'b0, 8'hC0);
+
+        load_night_lines;
+        for (index = 0; index < 16; index = index + 1) begin
+            check_write(144 + index, 1'b1, expected_line1[index]);
+            check_write(161 + index, 1'b1, expected_line2[index]);
+        end
+
         if (errors == 0)
-            $display("PASS: LCD initialization, command timing sequence, two-line text, and live refresh passed");
+            $display("PASS: LCD initialization, normal refresh, and night-mode text passed");
         else
             $display("FAIL: %0d LCD controller checks failed", errors);
 
