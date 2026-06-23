@@ -71,8 +71,7 @@ module lcd_controller #(
     reg [1:0]  write_phase;
     reg [4:0]  column;
     reg [3:0]  frame_state;
-    reg [3:0]  frame_tens;
-    reg [3:0]  frame_ones;
+    reg [6:0]  frame_seconds;
     reg        frame_ped_pending;
     reg [1:0]  frame_config_page;
     reg [2:0]  frame_config_item;
@@ -84,10 +83,13 @@ module lcd_controller #(
 
     wire [6:0] shown_seconds =
         (remaining_seconds > 16'd99) ? 7'd99 : remaining_seconds[6:0];
-    wire [6:0] shown_tens_value = shown_seconds / 7'd10;
-    wire [6:0] shown_ones_value = shown_seconds % 7'd10;
-    wire [3:0] shown_tens = shown_tens_value[3:0];
-    wire [3:0] shown_ones = shown_ones_value[3:0];
+    // Snapshot the raw value before decimal formatting.  The division then
+    // sits entirely in the LCD controller's 20 us multicycle path instead of
+    // extending the single-cycle traffic-controller-to-frame path.
+    wire [6:0] frame_tens_value = frame_seconds / 7'd10;
+    wire [6:0] frame_ones_value = frame_seconds % 7'd10;
+    wire [3:0] frame_tens = frame_tens_value[3:0];
+    wire [3:0] frame_ones = frame_ones_value[3:0];
 
     assign LCD_ON   = 1'b1;
     assign LCD_BLON = 1'b1;
@@ -604,8 +606,7 @@ module lcd_controller #(
             LCD_RS      <= 1'b0;
             LCD_EN      <= 1'b0;
             frame_state <= ST_EW_GREEN;
-            frame_tens  <= 4'd0;
-            frame_ones  <= 4'd0;
+            frame_seconds <= 7'd0;
             frame_ped_pending <= 1'b0;
             frame_config_page <= PAGE_HOME;
             frame_config_item <= 3'd0;
@@ -626,8 +627,7 @@ module lcd_controller #(
                         LCD_EN <= 1'b0;
                         if (operation == OP_LINE1_ADDR) begin
                             frame_state       <= traffic_state;
-                            frame_tens        <= shown_tens;
-                            frame_ones        <= shown_ones;
+                            frame_seconds     <= shown_seconds;
                             frame_ped_pending <= ped_pending;
                             frame_config_page <= config_page;
                             frame_config_item <= config_item;
