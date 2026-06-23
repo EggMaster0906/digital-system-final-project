@@ -13,6 +13,10 @@ module countdown_display_tb;
     localparam [3:0] ST_NIGHT     = 4'd8;
     localparam [3:0] ST_FAULT     = 4'd10;
     localparam [3:0] ST_FAULT_CLEAR = 4'd11;
+    localparam [15:0] GREEN_SECONDS   = 16'd10;
+    localparam [15:0] YELLOW_SECONDS  = 16'd3;
+    localparam [15:0] ALL_RED_SECONDS = 16'd1;
+    localparam [15:0] PED_SECONDS     = 16'd5;
 
     reg  [3:0]  state;
     reg  [15:0] remaining_seconds;
@@ -36,6 +40,10 @@ module countdown_display_tb;
         .remaining_seconds (remaining_seconds),
         .ped_pending       (ped_pending),
         .ped_return_state  (ped_return_state),
+        .green_seconds     (GREEN_SECONDS),
+        .yellow_seconds    (YELLOW_SECONDS),
+        .all_red_seconds   (ALL_RED_SECONDS),
+        .ped_seconds       (PED_SECONDS),
         .ew_seconds        (ew_seconds),
         .ns_seconds        (ns_seconds),
         .show_dashes       (show_dashes)

@@ -37,6 +37,7 @@ module traffic_controller_tb;
     digital_system_final_project #(
         .CLOCK_HZ              (TEST_CLOCK_HZ),
         .BUTTON_DEBOUNCE_CYCLES(TEST_DEBOUNCE_CYCLES),
+        .MIN_RED_SECONDS       (1),
         .GREEN_SECONDS         (TEST_GREEN_SECONDS),
         .MIN_GREEN_SECONDS     (TEST_MIN_GREEN),
         .YELLOW_SECONDS        (TEST_YELLOW_SECONDS),

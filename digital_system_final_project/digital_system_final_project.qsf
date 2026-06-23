@@ -53,6 +53,7 @@ set_global_assignment -name EDA_OUTPUT_DATA_FORMAT "VERILOG HDL" -section_id eda
 set_global_assignment -name VERILOG_FILE digital_system_final_project.v
 set_global_assignment -name VERILOG_FILE clock_divider.v
 set_global_assignment -name VERILOG_FILE button_conditioner.v
+set_global_assignment -name VERILOG_FILE configuration_controller.v
 set_global_assignment -name VERILOG_FILE traffic_controller.v
 set_global_assignment -name VERILOG_FILE countdown_display.v
 set_global_assignment -name VERILOG_FILE seven_seg_decoder.v

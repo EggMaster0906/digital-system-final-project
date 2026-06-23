@@ -12,6 +12,10 @@ module countdown_display #(
     input  wire [15:0] remaining_seconds,
     input  wire        ped_pending,
     input  wire [2:0]  ped_return_state,
+    input  wire [15:0] green_seconds,
+    input  wire [15:0] yellow_seconds,
+    input  wire [15:0] all_red_seconds,
+    input  wire [15:0] ped_seconds,
     output reg  [6:0]  ew_seconds,
     output reg  [6:0]  ns_seconds,
     output reg         show_dashes
@@ -48,63 +52,63 @@ module countdown_display #(
             ST_EW_GREEN: begin
                 ew_value = {16'd0, remaining_seconds};
                 ns_value = {16'd0, remaining_seconds} +
-                           YELLOW_SECONDS + ALL_RED_SECONDS;
+                           yellow_seconds + all_red_seconds;
                 if (ped_pending)
-                    ns_value = ns_value + PED_SECONDS + ALL_RED_SECONDS;
+                    ns_value = ns_value + ped_seconds + all_red_seconds;
             end
             ST_EW_YELLOW: begin
                 ew_value = {16'd0, remaining_seconds};
-                ns_value = {16'd0, remaining_seconds} + ALL_RED_SECONDS;
+                ns_value = {16'd0, remaining_seconds} + all_red_seconds;
                 if (ped_pending)
-                    ns_value = ns_value + PED_SECONDS + ALL_RED_SECONDS;
+                    ns_value = ns_value + ped_seconds + all_red_seconds;
             end
             ST_ALL_RED_1: begin
                 ns_value = {16'd0, remaining_seconds};
                 if (ped_pending)
-                    ns_value = ns_value + PED_SECONDS + ALL_RED_SECONDS;
-                ew_value = ns_value + GREEN_SECONDS +
-                           YELLOW_SECONDS + ALL_RED_SECONDS;
+                    ns_value = ns_value + ped_seconds + all_red_seconds;
+                ew_value = ns_value + green_seconds +
+                           yellow_seconds + all_red_seconds;
             end
             ST_NS_GREEN: begin
                 ns_value = {16'd0, remaining_seconds};
                 ew_value = {16'd0, remaining_seconds} +
-                           YELLOW_SECONDS + ALL_RED_SECONDS;
+                           yellow_seconds + all_red_seconds;
                 if (ped_pending)
-                    ew_value = ew_value + PED_SECONDS + ALL_RED_SECONDS;
+                    ew_value = ew_value + ped_seconds + all_red_seconds;
             end
             ST_NS_YELLOW: begin
                 ns_value = {16'd0, remaining_seconds};
-                ew_value = {16'd0, remaining_seconds} + ALL_RED_SECONDS;
+                ew_value = {16'd0, remaining_seconds} + all_red_seconds;
                 if (ped_pending)
-                    ew_value = ew_value + PED_SECONDS + ALL_RED_SECONDS;
+                    ew_value = ew_value + ped_seconds + all_red_seconds;
             end
             ST_ALL_RED_2: begin
                 ew_value = {16'd0, remaining_seconds};
                 if (ped_pending)
-                    ew_value = ew_value + PED_SECONDS + ALL_RED_SECONDS;
-                ns_value = ew_value + GREEN_SECONDS +
-                           YELLOW_SECONDS + ALL_RED_SECONDS;
+                    ew_value = ew_value + ped_seconds + all_red_seconds;
+                ns_value = ew_value + green_seconds +
+                           yellow_seconds + all_red_seconds;
             end
             ST_PED_GO: begin
                 if (ped_return_state == ST_EW_GREEN) begin
-                    ew_value = {16'd0, remaining_seconds} + ALL_RED_SECONDS;
-                    ns_value = ew_value + GREEN_SECONDS +
-                               YELLOW_SECONDS + ALL_RED_SECONDS;
+                    ew_value = {16'd0, remaining_seconds} + all_red_seconds;
+                    ns_value = ew_value + green_seconds +
+                               yellow_seconds + all_red_seconds;
                 end else begin
-                    ns_value = {16'd0, remaining_seconds} + ALL_RED_SECONDS;
-                    ew_value = ns_value + GREEN_SECONDS +
-                               YELLOW_SECONDS + ALL_RED_SECONDS;
+                    ns_value = {16'd0, remaining_seconds} + all_red_seconds;
+                    ew_value = ns_value + green_seconds +
+                               yellow_seconds + all_red_seconds;
                 end
             end
             ST_PED_CLEAR: begin
                 if (ped_return_state == ST_EW_GREEN) begin
                     ew_value = {16'd0, remaining_seconds};
-                    ns_value = ew_value + GREEN_SECONDS +
-                               YELLOW_SECONDS + ALL_RED_SECONDS;
+                    ns_value = ew_value + green_seconds +
+                               yellow_seconds + all_red_seconds;
                 end else begin
                     ns_value = {16'd0, remaining_seconds};
-                    ew_value = ns_value + GREEN_SECONDS +
-                               YELLOW_SECONDS + ALL_RED_SECONDS;
+                    ew_value = ns_value + green_seconds +
+                               yellow_seconds + all_red_seconds;
                 end
             end
             default: begin

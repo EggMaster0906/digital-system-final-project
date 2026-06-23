@@ -15,6 +15,11 @@ module traffic_controller #(
     input  wire        ped_request,
     input  wire        night_mode,
     input  wire        fault_mode,
+    input  wire        config_mode,
+    input  wire [15:0] min_red_seconds,
+    input  wire [15:0] green_seconds,
+    input  wire [15:0] yellow_seconds,
+    input  wire [15:0] ped_seconds,
     output reg  [3:0]  state,
     output reg  [15:0] remaining_seconds,
     output reg         ped_pending,
@@ -39,6 +44,9 @@ module traffic_controller #(
     localparam [3:0] ST_NIGHT_CLEAR = 4'd9;
     localparam [3:0] ST_FAULT       = 4'd10;
     localparam [3:0] ST_FAULT_CLEAR = 4'd11;
+    localparam [3:0] ST_CONFIG_ENTER = 4'd12;
+    localparam [3:0] ST_CONFIG       = 4'd13;
+    localparam [3:0] ST_CONFIG_EXIT  = 4'd14;
 
     reg [15:0] elapsed_seconds;
     reg [15:0] flash_elapsed_seconds;
@@ -46,16 +54,22 @@ module traffic_controller #(
     reg [15:0] state_duration;
     reg [3:0]  next_state;
     reg        transition_due;
+    reg        transition_allowed;
+    reg        config_pending;
+    reg [15:0] ew_red_elapsed;
+    reg [15:0] ns_red_elapsed;
+    reg [15:0] base_remaining;
+    reg [15:0] red_remaining;
     wire       ped_request_active = ped_pending | ped_request;
 
     always @(*) begin
         case (state)
             ST_EW_GREEN: begin
-                state_duration = GREEN_SECONDS;
+                state_duration = green_seconds;
                 next_state     = ST_EW_YELLOW;
             end
             ST_EW_YELLOW: begin
-                state_duration = YELLOW_SECONDS;
+                state_duration = yellow_seconds;
                 next_state     = ST_ALL_RED_1;
             end
             ST_ALL_RED_1: begin
@@ -66,11 +80,11 @@ module traffic_controller #(
                     next_state = ST_NS_GREEN;
             end
             ST_NS_GREEN: begin
-                state_duration = GREEN_SECONDS;
+                state_duration = green_seconds;
                 next_state     = ST_NS_YELLOW;
             end
             ST_NS_YELLOW: begin
-                state_duration = YELLOW_SECONDS;
+                state_duration = yellow_seconds;
                 next_state     = ST_ALL_RED_2;
             end
             ST_ALL_RED_2: begin
@@ -81,7 +95,7 @@ module traffic_controller #(
                     next_state = ST_EW_GREEN;
             end
             ST_PED_GO: begin
-                state_duration = PED_SECONDS;
+                state_duration = ped_seconds;
                 next_state     = ST_PED_CLEAR;
             end
             ST_PED_CLEAR: begin
@@ -96,7 +110,12 @@ module traffic_controller #(
             end
             ST_NIGHT_CLEAR: begin
                 state_duration = ALL_RED_SECONDS;
-                next_state     = ST_EW_GREEN;
+                if (config_mode)
+                    next_state = ST_CONFIG_ENTER;
+                else if (night_mode)
+                    next_state = ST_NIGHT;
+                else
+                    next_state = ST_EW_GREEN;
             end
             ST_FAULT: begin
                 state_duration = FLASH_SECONDS;
@@ -104,7 +123,29 @@ module traffic_controller #(
             end
             ST_FAULT_CLEAR: begin
                 state_duration = ALL_RED_SECONDS;
-                if (night_mode)
+                if (config_mode)
+                    next_state = ST_CONFIG_ENTER;
+                else if (night_mode)
+                    next_state = ST_NIGHT;
+                else
+                    next_state = ST_EW_GREEN;
+            end
+            ST_CONFIG_ENTER: begin
+                state_duration = ALL_RED_SECONDS;
+                if (config_mode)
+                    next_state = ST_CONFIG;
+                else
+                    next_state = ST_CONFIG_EXIT;
+            end
+            ST_CONFIG: begin
+                state_duration = 16'hffff;
+                next_state     = ST_CONFIG;
+            end
+            ST_CONFIG_EXIT: begin
+                state_duration = ALL_RED_SECONDS;
+                if (config_mode)
+                    next_state = ST_CONFIG_ENTER;
+                else if (night_mode)
                     next_state = ST_NIGHT;
                 else
                     next_state = ST_EW_GREEN;
@@ -117,6 +158,7 @@ module traffic_controller #(
 
 
         transition_due = (elapsed_seconds + 1'b1 >= state_duration);
+        transition_allowed = 1'b1;
 
         // A waiting pedestrian may shorten only a vehicle green phase, and
         // never below the configured minimum safe green time.
@@ -124,6 +166,16 @@ module traffic_controller #(
             ped_request_active &&
             (elapsed_seconds + 1'b1 >= MIN_GREEN_SECONDS))
             transition_due = 1'b1;
+
+        // A direction may receive green only after its configured minimum red
+        // time. The current tick is included because it completes one red
+        // second before the state transition is observed.
+        if ((next_state == ST_EW_GREEN) &&
+            (ew_red_elapsed + 1'b1 < min_red_seconds))
+            transition_allowed = 1'b0;
+        if ((next_state == ST_NS_GREEN) &&
+            (ns_red_elapsed + 1'b1 < min_red_seconds))
+            transition_allowed = 1'b0;
     end
 
     always @(posedge clk or negedge reset_n) begin
@@ -134,7 +186,23 @@ module traffic_controller #(
             flash_on        <= 1'b1;
             ped_pending     <= 1'b0;
             ped_return_state <= ST_NS_GREEN;
+            config_pending  <= 1'b0;
+            ew_red_elapsed  <= 16'd0;
+            ns_red_elapsed  <= 16'd0;
         end else begin
+            if (tick_1s) begin
+                if ((state == ST_EW_GREEN) || (state == ST_EW_YELLOW) ||
+                    (state == ST_NIGHT))
+                    ew_red_elapsed <= 16'd0;
+                else if (ew_red_elapsed != 16'hffff)
+                    ew_red_elapsed <= ew_red_elapsed + 1'b1;
+
+                if ((state == ST_NS_GREEN) || (state == ST_NS_YELLOW))
+                    ns_red_elapsed <= 16'd0;
+                else if (ns_red_elapsed != 16'hffff)
+                    ns_red_elapsed <= ns_red_elapsed + 1'b1;
+            end
+
             if (ped_request && (state != ST_PED_GO))
                 ped_pending <= 1'b1;
 
@@ -164,10 +232,64 @@ module traffic_controller #(
                         flash_elapsed_seconds <= flash_elapsed_seconds + 1'b1;
                     end
                 end
+            end else if (state == ST_CONFIG) begin
+                elapsed_seconds       <= 16'd0;
+                flash_elapsed_seconds <= 16'd0;
+                flash_on              <= 1'b1;
+                config_pending        <= 1'b0;
+
+                if (!config_mode) begin
+                    state           <= ST_CONFIG_EXIT;
+                    elapsed_seconds <= 16'd0;
+                end
+            end else if ((state == ST_FAULT_CLEAR) ||
+                         (state == ST_NIGHT_CLEAR) ||
+                         (state == ST_CONFIG_ENTER) ||
+                         (state == ST_CONFIG_EXIT)) begin
+                flash_elapsed_seconds <= 16'd0;
+                flash_on              <= 1'b1;
+
+                if (tick_1s && transition_due && transition_allowed) begin
+                    state           <= next_state;
+                    elapsed_seconds <= 16'd0;
+                    if (next_state == ST_CONFIG_ENTER)
+                        config_pending <= 1'b0;
+                end else if (tick_1s) begin
+                    elapsed_seconds <= elapsed_seconds + 1'b1;
+                end
+            // A settings request from green first enters yellow. From yellow,
+            // it waits for that warning interval to finish. All other modes
+            // can safely move directly to a fresh all-red entry interval.
+            end else if (config_mode || config_pending) begin
+                flash_elapsed_seconds <= 16'd0;
+                flash_on              <= 1'b1;
+
+                if (state == ST_EW_GREEN) begin
+                    state            <= ST_EW_YELLOW;
+                    elapsed_seconds  <= 16'd0;
+                    config_pending   <= 1'b1;
+                end else if (state == ST_NS_GREEN) begin
+                    state            <= ST_NS_YELLOW;
+                    elapsed_seconds  <= 16'd0;
+                    config_pending   <= 1'b1;
+                end else if ((state == ST_EW_YELLOW) ||
+                             (state == ST_NS_YELLOW)) begin
+                    config_pending <= 1'b1;
+                    if (tick_1s && transition_due) begin
+                        state           <= ST_CONFIG_ENTER;
+                        elapsed_seconds <= 16'd0;
+                        config_pending  <= 1'b0;
+                    end else if (tick_1s) begin
+                        elapsed_seconds <= elapsed_seconds + 1'b1;
+                    end
+                end else begin
+                    state           <= ST_CONFIG_ENTER;
+                    elapsed_seconds <= 16'd0;
+                    config_pending  <= 1'b0;
+                end
             // Night mode has priority over the normal traffic and pedestrian
-            // sequence, but it cannot bypass fault-clearance all-red timing.
-            end else if (night_mode && (state != ST_NIGHT) &&
-                         (state != ST_FAULT_CLEAR)) begin
+            // sequence after fault and configuration requests are handled.
+            end else if (night_mode && (state != ST_NIGHT)) begin
                 state                 <= ST_NIGHT;
                 elapsed_seconds       <= 16'd0;
                 flash_elapsed_seconds <= 16'd0;
@@ -193,7 +315,7 @@ module traffic_controller #(
                 flash_elapsed_seconds <= 16'd0;
                 flash_on              <= 1'b1;
 
-                if (tick_1s && transition_due) begin
+                if (tick_1s && transition_due && transition_allowed) begin
                     if ((state == ST_ALL_RED_1) && (next_state == ST_PED_GO))
                         ped_return_state <= ST_NS_GREEN;
                     else if ((state == ST_ALL_RED_2) && (next_state == ST_PED_GO))
@@ -212,18 +334,35 @@ module traffic_controller #(
     end
 
     always @(*) begin
-        if ((state == ST_NIGHT) || (state == ST_FAULT))
+        base_remaining = 16'd0;
+        red_remaining  = 16'd0;
+
+        if ((state == ST_NIGHT) || (state == ST_FAULT) ||
+            (state == ST_CONFIG)) begin
             remaining_seconds = 16'd0;
-        else if (((state == ST_EW_GREEN) || (state == ST_NS_GREEN)) &&
-            ped_request_active && (elapsed_seconds < MIN_GREEN_SECONDS))
+        end else if (((state == ST_EW_GREEN) || (state == ST_NS_GREEN)) &&
+                     ped_request_active &&
+                     (elapsed_seconds < MIN_GREEN_SECONDS)) begin
             remaining_seconds = MIN_GREEN_SECONDS - elapsed_seconds;
-        else if (((state == ST_EW_GREEN) || (state == ST_NS_GREEN)) &&
-                 ped_request_active)
+        end else if (((state == ST_EW_GREEN) || (state == ST_NS_GREEN)) &&
+                     ped_request_active) begin
             remaining_seconds = 16'd1;
-        else if (elapsed_seconds < state_duration)
-            remaining_seconds = state_duration - elapsed_seconds;
-        else
-            remaining_seconds = 16'd0;
+        end else begin
+            if (elapsed_seconds < state_duration)
+                base_remaining = state_duration - elapsed_seconds;
+
+            if ((next_state == ST_EW_GREEN) &&
+                (ew_red_elapsed < min_red_seconds))
+                red_remaining = min_red_seconds - ew_red_elapsed;
+            else if ((next_state == ST_NS_GREEN) &&
+                     (ns_red_elapsed < min_red_seconds))
+                red_remaining = min_red_seconds - ns_red_elapsed;
+
+            if (red_remaining > base_remaining)
+                remaining_seconds = red_remaining;
+            else
+                remaining_seconds = base_remaining;
+        end
     end
 
     always @(*) begin

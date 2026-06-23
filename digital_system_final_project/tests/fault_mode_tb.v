@@ -30,6 +30,7 @@ module fault_mode_tb;
     digital_system_final_project #(
         .CLOCK_HZ              (TEST_CLOCK_HZ),
         .BUTTON_DEBOUNCE_CYCLES(1),
+        .MIN_RED_SECONDS       (1),
         .GREEN_SECONDS         (TEST_GREEN_SECONDS),
         .MIN_GREEN_SECONDS     (2),
         .YELLOW_SECONDS        (2),

@@ -4,6 +4,7 @@
 module digital_system_final_project #(
     parameter integer CLOCK_HZ         = 50_000_000,
     parameter integer BUTTON_DEBOUNCE_CYCLES = 1_000_000,
+    parameter [15:0]  MIN_RED_SECONDS  = 16'd14,
     parameter [15:0]  GREEN_SECONDS    = 16'd10,
     parameter [15:0]  MIN_GREEN_SECONDS = 16'd5,
     parameter [15:0]  YELLOW_SECONDS   = 16'd3,
@@ -40,6 +41,9 @@ module digital_system_final_project #(
     wire        ns_red;
     wire        ns_green;
     wire        ped_request;
+    wire        key_select;
+    wire        key_down;
+    wire        key_back;
     wire        ped_pending;
     wire        ped_stop;
     wire        ped_go;
@@ -57,20 +61,46 @@ module digital_system_final_project #(
     wire [6:0]  ns_ones_value;
     reg  [1:0]  night_mode_sync;
     reg  [1:0]  fault_mode_sync;
+    reg  [1:0]  config_mode_sync;
     wire        night_mode = night_mode_sync[1];
     wire        fault_mode = fault_mode_sync[1];
+    wire        config_mode = config_mode_sync[1];
+    wire        config_active = (traffic_state == 4'd13);
+    wire        config_related = (traffic_state >= 4'd12);
+    wire [1:0]  config_page;
+    wire [2:0]  config_item;
+    wire [15:0] config_display_value;
+    wire [15:0] configured_min_red_seconds;
+    wire [15:0] configured_green_seconds;
+    wire [15:0] configured_yellow_seconds;
+    wire [15:0] configured_ped_seconds;
 
-    // KEY[0] is active-low on the DE2-115 board.
-    wire reset_n = KEY[0];
+    // KEY[0] is masked from reset only while the menu itself is active. The
+    // function defaults safely to reset mode even if state is unknown during
+    // power-up, and fault preemption restores KEY[0]'s reset role.
+    function is_config_state;
+        input [3:0] current_state;
+        begin
+            case (current_state)
+                4'd13: is_config_state = 1'b1;
+                default: is_config_state = 1'b0;
+            endcase
+        end
+    endfunction
+
+    wire key0_is_select = is_config_state(traffic_state);
+    wire reset_n = KEY[0] | key0_is_select;
 
     // Synchronize asynchronous mode switches before they control the FSM.
     always @(posedge CLOCK_50 or negedge reset_n) begin
         if (!reset_n) begin
             night_mode_sync <= 2'b00;
             fault_mode_sync <= 2'b00;
+            config_mode_sync <= 2'b00;
         end else begin
             night_mode_sync <= {night_mode_sync[0], SW[3]};
             fault_mode_sync <= {fault_mode_sync[0], SW[4]};
+            config_mode_sync <= {config_mode_sync[0], SW[17]};
         end
     end
 
@@ -93,6 +123,55 @@ module digital_system_final_project #(
         .press_pulse (ped_request)
     );
 
+    button_conditioner #(
+        .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES)
+    ) select_button_inst (
+        .clk         (CLOCK_50),
+        .reset_n     (reset_n),
+        .button_n    (KEY[0]),
+        .press_pulse (key_select)
+    );
+
+    button_conditioner #(
+        .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES)
+    ) down_button_inst (
+        .clk         (CLOCK_50),
+        .reset_n     (reset_n),
+        .button_n    (KEY[2]),
+        .press_pulse (key_down)
+    );
+
+    button_conditioner #(
+        .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES)
+    ) back_button_inst (
+        .clk         (CLOCK_50),
+        .reset_n     (reset_n),
+        .button_n    (KEY[3]),
+        .press_pulse (key_back)
+    );
+
+    configuration_controller #(
+        .DEFAULT_MIN_RED_SECONDS(MIN_RED_SECONDS),
+        .DEFAULT_GREEN_SECONDS  (GREEN_SECONDS),
+        .DEFAULT_YELLOW_SECONDS (YELLOW_SECONDS),
+        .DEFAULT_PED_SECONDS    (PED_SECONDS)
+    ) configuration_controller_inst (
+        .clk             (CLOCK_50),
+        .reset_n         (reset_n),
+        .config_active   (config_active),
+        .key_select      (key_select),
+        .key_up          (ped_request),
+        .key_down        (key_down),
+        .key_back        (key_back),
+        .page            (config_page),
+        .selected_item   (config_item),
+        .display_value   (config_display_value),
+        .min_red_seconds (configured_min_red_seconds),
+        .green_seconds   (configured_green_seconds),
+        .yellow_seconds  (configured_yellow_seconds),
+        .ped_seconds     (configured_ped_seconds)
+    );
+
     traffic_controller #(
         .GREEN_SECONDS   (GREEN_SECONDS),
         .MIN_GREEN_SECONDS(MIN_GREEN_SECONDS),
@@ -104,9 +183,14 @@ module digital_system_final_project #(
         .clk               (CLOCK_50),
         .reset_n           (reset_n),
         .tick_1s           (tick_1s),
-        .ped_request       (ped_request),
+        .ped_request       (ped_request & !config_mode & !config_related),
         .night_mode        (night_mode),
         .fault_mode        (fault_mode),
+        .config_mode       (config_mode),
+        .min_red_seconds   (configured_min_red_seconds),
+        .green_seconds     (configured_green_seconds),
+        .yellow_seconds    (configured_yellow_seconds),
+        .ped_seconds       (configured_ped_seconds),
         .state             (traffic_state),
         .remaining_seconds (remaining_seconds),
         .ped_pending       (ped_pending),
@@ -129,6 +213,10 @@ module digital_system_final_project #(
         .remaining_seconds (remaining_seconds),
         .ped_pending       (ped_pending),
         .ped_return_state  (ped_return_state),
+        .green_seconds     (configured_green_seconds),
+        .yellow_seconds    (configured_yellow_seconds),
+        .all_red_seconds   (ALL_RED_SECONDS),
+        .ped_seconds       (configured_ped_seconds),
         .ew_seconds        (ew_countdown),
         .ns_seconds        (ns_countdown),
         .show_dashes       (countdown_dashes)
@@ -156,6 +244,13 @@ module digital_system_final_project #(
         .traffic_state     (traffic_state),
         .remaining_seconds (remaining_seconds),
         .ped_pending       (ped_pending),
+        .config_page       (config_page),
+        .config_item       (config_item),
+        .config_value      (config_display_value),
+        .config_min_red    (configured_min_red_seconds),
+        .config_green      (configured_green_seconds),
+        .config_yellow     (configured_yellow_seconds),
+        .config_ped        (configured_ped_seconds),
         .LCD_ON            (LCD_ON),
         .LCD_BLON          (LCD_BLON),
         .LCD_DATA          (LCD_DATA),
@@ -174,7 +269,7 @@ module digital_system_final_project #(
     assign HEX2 = 7'b1111111;
     assign HEX3 = 7'b1111111;
 
-    // SW[3] selects night mode and SW[4] simulates a system fault. Other
-    // switches remain available for later smart-traffic and configuration.
+    // SW[3] selects night mode, SW[4] simulates a system fault, and SW[17]
+    // requests the safely interlocked system-settings mode.
 
 endmodule

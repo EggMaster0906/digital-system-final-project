@@ -10,13 +10,14 @@ sources="
 $project_root/digital_system_final_project.v
 $project_root/clock_divider.v
 $project_root/button_conditioner.v
+$project_root/configuration_controller.v
 $project_root/traffic_controller.v
 $project_root/countdown_display.v
 $project_root/seven_seg_decoder.v
 $project_root/lcd_controller.v
 "
 
-for test_name in traffic_controller night_mode fault_mode countdown_display lcd_controller; do
+for test_name in traffic_controller night_mode fault_mode configuration_controller system_settings_mode countdown_display lcd_controller; do
     output="$output_dir/${test_name}_tb.vvp"
     trap 'rm -f "$output"' EXIT HUP INT TERM
     echo "=== Test ${test_name}_tb ==="
